@@ -2,6 +2,7 @@
 
 import base64
 import anthropic
+from openai import AsyncOpenAI
 from google import genai
 from google.genai import types
 
@@ -10,6 +11,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 _client: anthropic.AsyncAnthropic | None = None
 _gemini_client: genai.Client | None = None
+_openai_client: AsyncOpenAI | None = None
 
 
 def get_client() -> anthropic.AsyncAnthropic:
@@ -30,6 +32,16 @@ def get_gemini_client() -> genai.Client:
         logger.info("Initializing Gemini client")
         _gemini_client = genai.Client(api_key=settings.gemini_api_key)
     return _gemini_client
+
+
+def get_openai_client() -> AsyncOpenAI:
+    """Return the singleton OpenAI async client, initializing on first call."""
+    global _openai_client
+    if _openai_client is None:
+        from config import settings
+        logger.info("Initializing OpenAI client")
+        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    return _openai_client
 
 
 def clean_llm_json_response(text: str) -> str:
@@ -60,6 +72,8 @@ def _get_model_for_provider(model_key: str, provider: str) -> str:
         return getattr(settings, f"gemini_{model_key}", getattr(settings, model_key))
     if provider == "anthropic":
         return getattr(settings, f"anthropic_{model_key}", getattr(settings, model_key))
+    if provider == "openai":
+        return getattr(settings, f"openai_{model_key}", getattr(settings, model_key))
     return getattr(settings, model_key)
 
 
@@ -102,12 +116,50 @@ def _to_gemini_contents(messages: list[dict]) -> list[types.Content]:
     return contents
 
 
+def _to_openai_input(messages: list[dict]) -> list[dict]:
+    formatted: list[dict] = []
+    for message in messages:
+        role = "assistant" if message.get("role") == "assistant" else "user"
+        content = message.get("content", "")
+        parts: list[dict] = []
+
+        if isinstance(content, list):
+            for item in content:
+                if not isinstance(item, dict):
+                    parts.append({"type": "input_text", "text": str(item)})
+                    continue
+                if item.get("type") == "text":
+                    parts.append({"type": "input_text", "text": item.get("text", "")})
+                    continue
+                if item.get("type") == "image":
+                    source = item.get("source", {})
+                    data = source.get("data", "")
+                    media_type = source.get("media_type", "image/jpeg")
+                    if data:
+                        parts.append({
+                            "type": "input_image",
+                            "image_url": f"data:{media_type};base64,{data}",
+                        })
+                    continue
+                if "text" in item:
+                    parts.append({"type": "input_text", "text": str(item.get("text", ""))})
+                else:
+                    parts.append({"type": "input_text", "text": str(item)})
+        else:
+            parts.append({"type": "input_text", "text": str(content)})
+
+        formatted.append({"role": role, "content": parts})
+
+    return formatted
+
+
 async def call_llm(
     system: str,
     messages: list[dict],
     model_key: str = "response_model",
     max_tokens: int = 1024,
     llm_provider: str | None = None,
+    explicit_model: str | None = None,
 ) -> str:
     """Send a message to the configured LLM and return the text response.
 
@@ -116,6 +168,7 @@ async def call_llm(
         messages: List of {"role": ..., "content": ...} dicts.
         model_key: Key in Settings — "query_model" or "response_model".
         max_tokens: Maximum tokens in the response.
+        explicit_model: Optional model override to bypass Settings.
 
     Returns:
         The assistant's text response as a string.
@@ -123,7 +176,7 @@ async def call_llm(
     from config import settings
 
     provider = (llm_provider or settings.llm_provider).lower().strip()
-    model = _get_model_for_provider(model_key, provider)
+    model = explicit_model or _get_model_for_provider(model_key, provider)
     logger.info(
         "Calling LLM",
         extra={
@@ -143,9 +196,30 @@ async def call_llm(
                 config=types.GenerateContentConfig(
                     system_instruction=system,
                     max_output_tokens=max_tokens,
+                    # automatic_function_calling=False,
                 ),
             )
             raw_text = response.text or ""
+        elif provider == "openai":
+            client = get_openai_client()
+            response = await client.responses.create(
+                model=model,
+                input=_to_openai_input(messages),
+                max_output_tokens=max_tokens,
+                instructions=system,
+            )
+            if getattr(response, "output_text", None):
+                raw_text = response.output_text
+            else:
+                chunks: list[str] = []
+                for item in getattr(response, "output", []) or []:
+                    if getattr(item, "type", "") != "message":
+                        continue
+                    for piece in getattr(item, "content", []) or []:
+                        text = getattr(piece, "text", None)
+                        if text:
+                            chunks.append(text)
+                raw_text = "".join(chunks)
         else:
             client = get_client()
             response = await client.messages.create(

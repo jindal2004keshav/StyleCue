@@ -10,7 +10,7 @@ from utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
-_ALLOWED_PROVIDERS = {"anthropic", "gemini"}
+_ALLOWED_PROVIDERS = {"anthropic", "gemini", "openai"}
 
 
 def _normalize_provider(value: str | None) -> str | None:

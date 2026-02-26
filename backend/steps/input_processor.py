@@ -88,7 +88,8 @@ async def _extract_image_meta(base64: str, llm_provider: str | None = None) -> d
         }],
         model_key="analyst_model",
         max_tokens=256,
-        llm_provider=llm_provider,
+        llm_provider="anthropic",
+        explicit_model="claude-sonnet-4-6",
     )
     try:
         return json.loads(raw)

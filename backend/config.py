@@ -5,8 +5,8 @@ logger = get_logger(__name__)
 
 
 class Settings(BaseSettings):
-    # LLM provider ("anthropic" or "gemini")
-    llm_provider: str = "gemini"
+    # LLM provider ("anthropic", "gemini", or "openai")
+    llm_provider: str = "openai"
     # Anthropic
     anthropic_api_key: str = ""
     anthropic_analyst_model: str = "claude-sonnet-4-6"
@@ -15,10 +15,14 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     gemini_analyst_model: str = "gemini-3.1"
     gemini_response_model: str = "gemini-3.1"
+    # OpenAI
+    openai_api_key: str = ""
+    openai_analyst_model: str = "gpt-5.2"
+    openai_response_model: str = "gpt-5.2"
     # Step 2: requirement analysis — needs reasoning capability
-    analyst_model: str = "claude-sonnet-4-6"
+    analyst_model: str = "gpt-5.2"
     # Step 4: final response generation
-    response_model: str = "claude-sonnet-4-6"
+    response_model: str = "gpt-5.2"
 
     # App
     app_env: str = "development"
