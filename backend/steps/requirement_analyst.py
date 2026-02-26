@@ -63,8 +63,15 @@ Category and query design rules (CLOTH PREDICTOR BEHAVIOUR):
   that the next step can build full outfits (at least one top and one bottom).
 - Map broad garment roles to categories roughly as:
     * Tops   -> "Shirts", "T-Shirts"
-    * Bottoms -> "Trousers", "Shorts"
+    * Bottoms -> "Trousers", "Shorts", "Jeans"
     * Outerwear (only when requested) -> "Jackets"
+    * Footwear -> "Shoes", "Sandals", "Slippers"
+- Default to including exactly one footwear category ("Shoes" or "Sandals" or "Slippers")
+  in queries so outfits are complete, unless the user explicitly asks to exclude footwear
+  or the occasion/context clearly makes footwear inappropriate or mismatched.
+- Ensure all explicitly requested products and any reasonably inferred items from the
+  user's prompt and preferences are represented in the outfit plan via appropriate
+  categories and queries.
 - If the prompt or preferences specify particular categories, colours, or fits, reflect
   those directly in "text_query" and "filters".
 
@@ -95,7 +102,7 @@ When defining filters, use ONLY these field names:
   - "colors"       : comma-separated colour names
   - "brands"       : brand name (optional)
 
-Target categories are restricted to: Shirts, T-Shirts, Trousers, Shorts, Jackets."""
+Target categories are restricted to: Shirts, T-Shirts, Trousers, Shorts, Jeans, Jackets, Shoes, Sandals, Slippers."""
 
 
 async def analyse_requirements(

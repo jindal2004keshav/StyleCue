@@ -242,13 +242,17 @@ export function ChatPage({ initialInput, onReset }: Props) {
                 )}
               </div>
 
-              {/* Outfit cards for assistant messages — full-width, no indentation */}
+              {/* Outfit results — annotation + responsive card grid */}
               {msg.outfits && msg.outfits.length > 0 && (
-                <div className="space-y-4">
+                <div className="space-y-3 mt-1">
                   {msg.text && (
-                    <p className="text-sm text-gray-500 leading-relaxed pl-1">{msg.text}</p>
+                    <div className="flex items-center gap-2 pl-1">
+                      <div className="w-5 h-px bg-gray-200" />
+                      <p className="text-xs text-gray-400 italic leading-relaxed">{msg.text}</p>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
                   )}
-                  <div className="grid grid-cols-1 gap-6">
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
                     {msg.outfits.map((outfit) => (
                       <OutfitCard
                         key={`${msg.id}-${outfit.id}`}

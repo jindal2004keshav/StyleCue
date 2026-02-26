@@ -144,7 +144,7 @@ async def _run_single_query(query: QdrantQuery) -> list[Product]:
                 files=multipart_fields,
                 params=build_image_similarity_query_params(params),
             )
-            logger.info(resp.content)
+            # logger.info(resp.content)
             resp.raise_for_status()
     except Exception:
         logger.exception("BrandEye search request failed")
