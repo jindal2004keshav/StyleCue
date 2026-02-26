@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Step 4 — Final Response</title>
+  <script src="test_utils.js"></script>
+  <style id="shared"></style>
+</head>
+<body>
+  <h1>Step 4 — Final Response</h1>
+  <p class="subtitle">POST /api/steps/generate-response · Analyst reasoning + products → structured outfits</p>
+
+  <label for="department">Department</label>
+  <select id="department" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;margin-bottom:16px">
+    <option value="women">Women</option>
+    <option value="men">Men</option>
+  </select>
+
+  <label for="prompt">Prompt</label>
+  <input type="text" id="prompt" value="I need an outfit for a summer garden party" />
+
+  <label for="preferences">Preferences (JSON)</label>
+  <textarea id="preferences" rows="3">{ "Occasion": "Outdoor", "Fit": "Relaxed" }</textarea>
+
+  <label for="reasoning">Analyst Reasoning (from Step 2)</label>
+  <textarea id="reasoning" rows="4">The user wants a relaxed outdoor outfit for a garden party. I'll look for a light floral dress and complementary accessories.</textarea>
+
+  <label for="requires_qdrant">Requires Qdrant</label>
+  <select id="requires_qdrant" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;margin-bottom:16px">
+    <option value="true">true</option>
+    <option value="false">false</option>
+  </select>
+
+  <label for="products">Products (JSON array from Step 3)</label>
+  <textarea id="products" rows="14">[
+  {
+    "id": "1",
+    "name": "Floral Wrap Dress",
+    "category": "Dresses",
+    "price": 89.99,
+    "image_url": "",
+    "pdp_url": "https://example.com/products/floral-wrap-dress",
+    "description": "Light floral wrap dress perfect for outdoor occasions",
+    "metadata": {}
+  },
+  {
+    "id": "2",
+    "name": "Woven Straw Hat",
+    "category": "Accessories",
+    "price": 34.99,
+    "image_url": "",
+    "pdp_url": "https://example.com/products/straw-hat",
+    "description": "Wide-brim straw hat for sun protection and boho style",
+    "metadata": {}
+  }
+]</textarea>
+
+  <label for="conversation_context">Conversation Context (JSON, optional)</label>
+  <textarea id="conversation_context" rows="3">{}</textarea>
+
+  <button id="submit-btn" onclick="run()">Submit</button>
+  <div id="result"><div class="label"></div><pre></pre></div>
+
+  <script>
+    document.getElementById("shared").textContent = SHARED_STYLES;
+
+    async function run() {
+      const btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Generating…";
+
+      try {
+        let preferences = {}, products = [], conversation_context = {};
+        try { preferences = JSON.parse(document.getElementById("preferences").value); }
+        catch { throw new Error("Preferences is not valid JSON"); }
+        try { products = JSON.parse(document.getElementById("products").value); }
+        catch { throw new Error("Products is not valid JSON"); }
+        try { conversation_context = JSON.parse(document.getElementById("conversation_context").value); }
+        catch { throw new Error("Conversation Context is not valid JSON"); }
+
+        const result = await apiPost("/steps/generate-response", {
+          department: document.getElementById("department").value,
+          prompt: document.getElementById("prompt").value,
+          preferences,
+          reasoning: document.getElementById("reasoning").value,
+          requires_qdrant: document.getElementById("requires_qdrant").value === "true",
+          products,
+          conversation_context,
+        });
+        // result.outfits is the new shape
+        showResult(result);
+      } catch (err) {
+        showError(err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Submit";
+      }
+    }
+  </script>
+</body>
+</html>

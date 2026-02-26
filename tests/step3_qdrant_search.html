@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Step 3 — Qdrant Search</title>
+  <script src="test_utils.js"></script>
+  <style id="shared"></style>
+</head>
+<body>
+  <h1>Step 3 — Qdrant Search</h1>
+  <p class="subtitle">POST /api/steps/search-qdrant · One or more QdrantQuery objects → deduplicated product list</p>
+
+  <label for="queries">Queries (JSON array from Step 2 output)</label>
+  <textarea id="queries" rows="12">[
+  {
+    "text_query": "boho floral dress outdoor garden party women",
+    "filters": {},
+    "top_k": 10
+  }
+]</textarea>
+
+  <button id="submit-btn" onclick="run()">Submit</button>
+  <div id="result"><div class="label"></div><pre></pre></div>
+
+  <script>
+    document.getElementById("shared").textContent = SHARED_STYLES;
+
+    async function run() {
+      const btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Searching…";
+
+      try {
+        let queries = [];
+        try { queries = JSON.parse(document.getElementById("queries").value); }
+        catch { throw new Error("Queries is not valid JSON"); }
+
+        const result = await apiPost("/steps/search-qdrant", { queries });
+        showResult(result);
+      } catch (err) {
+        showError(err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Submit";
+      }
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,220 @@
+API Contract — Image Similarity Search
+
+Endpoint
+
+- Method: POST
+- Path: /brandeye/image_similarity_search
+- Content-Type: multipart/form-data
+- Auth: none enforced in code
+- Host: https://ai-search-brandeye.blr.streamoid.com
+
+Purpose
+
+- Search products by vector similarity (image and/or text) plus optional metadata filters.
+- Supports filter-only searches (no image, no text).
+- Sorting by popularity or recency (see Sorting).
+
+———
+
+Query Parameters
+
+- offset (int, optional, default 0)
+    - Used only when vector search is active.
+- limit (int, optional, default 100)
+    - Max results; used in vector search and filter-only search.
+- scroll_token (string, optional)
+    - Only used for filter-only search pagination.
+    - Treat as opaque; produced by the API as next_token.
+
+———
+
+Form Fields (multipart/form-data)
+
+All list fields are currently parsed from the first value only, and split by comma. That means you should send a single comma-separated string per
+field.
+
+- departments (string, optional)
+    - Comma-separated; maps to payload key Department.
+    - Example: Women,Men
+- categories (string, optional)
+    - Comma-separated; maps to payload key category.
+- colors (string, optional)
+    - Comma-separated; maps to payload key Color.
+- types (string, optional)
+    - Comma-separated; maps to payload key Type.
+- store_uuid (string, optional)
+    - Comma-separated store UUIDs.
+    - Unlike other fields, multiple values are merged if you send repeated form fields.
+- brands (string, optional)
+    - Comma-separated; maps to payload key brand.
+- source (string, optional)
+    - Comma-separated; maps to payload key source.
+- trend_times (string, optional)
+    - Comma-separated date range for payload key created_ts.
+    - One value: 2025-01-01T00:00:00Z (interpreted as >=).
+    - Two values: start,end (interpreted as >= start and <= end).
+- discount_range (string, optional)
+    - Comma-separated numeric range for payload key discount.
+    - One value: 20 (interpreted as >= 20).
+    - Two values: 10,50.
+- selling_price_range (string, optional)
+    - Comma-separated numeric range for payload key selling_price.
+- query_text (string, optional)
+    - Text used to generate text embeddings.
+- image (file, optional)
+    - Raw image used to generate image embeddings.
+- sort_flag (string, optional, default popularity)
+    - Implemented behavior: only popularity and recency are respected.
+    - Any other value is coerced to recency.
+
+Input Notes
+
+- At least one of query_text, image, or any filter should be provided.
+- If both image and query_text are provided, embeddings are blended with weights text=0.4, image=0.6.
+- For list fields, pass a single comma-separated string. The current implementation only reads the first list value.
+
+———
+
+Sorting
+
+- popularity → payload trending_score descending.
+- recency → payload created_ts descending.
+- relevance is mentioned in docstring but not honored by code. Any value other than popularity or recency becomes recency.
+
+———
+
+Pagination
+
+Vector Search (image/text present)
+
+- Uses offset and limit.
+- scroll_token is ignored.
+- Response next_token is always null.
+
+Filter-Only Search
+
+- Uses keyset pagination; offset is not used.
+- Pass scroll_token from the previous response’s next_token.
+
+———
+
+Response Shape
+
+Top-level wrapper:
+
+{
+  "image_similarity": {
+    "results": [ ... ],
+    "next_token": "..."
+  }
+}
+
+Vector Search Results
+Each item has:
+
+- point (object): Qdrant payload (product metadata)
+- point_id (string or int): Qdrant point id
+- score (float): similarity score
+- source (string): "image_embeddings_refined"
+
+Filter-Only Results
+Each item has:
+
+- point (object): Qdrant payload
+- point_id (string or int)
+- source (string): "filters_only"
+- No score field.
+
+———
+
+Status Codes
+
+- 200 Success
+- 422 Validation error (FastAPI)
+- 500 Internal error
+    - Response shape: { "detail": "Internal Server Error: <message>" }
+
+———
+
+Examples
+
+1) Image + Text Search
+
+curl -X POST \
+  -F 'query_text=black cotton t-shirt' \
+  -F 'image=@/path/to/image.jpg' \
+  -F 'categories=T-Shirts' \
+  -F 'sort_flag=popularity' \
+  'http://localhost:8080/brandeye/image_similarity_search?limit=50&offset=0'
+
+Response (vector search)
+
+{
+  "image_similarity": {
+    "results": [
+      {
+        "point": {
+          "title": "Black Cotton T-Shirt",
+          "brand": "Example Brand",
+          "category": "T-Shirts",
+          "Department": "Men",
+          "Color": "Black",
+          "created_ts": "2025-07-01T10:30:00Z",
+          "modified_ts": "2025-07-20T14:15:00Z",
+          "trending_score": 78.5
+        },
+        "score": 0.92,
+        "source": "image_embeddings_refined",
+        "point_id": "15391935"
+      }
+    ],
+    "next_token": null
+  }
+}
+
+2) Filter-Only Search + Pagination
+
+curl -X POST \
+  -F 'departments=Women' \
+  -F 'colors=Black,Red' \
+  -F 'selling_price_range=20,100' \
+  -F 'sort_flag=recency' \
+  'http://localhost:8080/brandeye/image_similarity_search?limit=100'
+
+Response (filter-only)
+
+{
+  "image_similarity": {
+    "results": [
+      {
+        "point": {
+          "title": "Black Dress",
+          "created_ts": "2025-07-21T09:00:00Z",
+          "modified_ts": "2025-07-22T12:00:00Z",
+          "trending_score": 12.3
+        },
+        "source": "filters_only",
+        "point_id": "9823371"
+      }
+    ],
+    "next_token": "eyJ2YWx1ZSI6IjIwMjUtMDctMjFUMDk6MDA6MDBaIiwiaWQiOiI5ODIzMzcxIn0="
+  }
+}
+
+Next page (filter-only)
+
+curl -X POST \
+  -F 'departments=Women' \
+  -F 'colors=Black,Red' \
+  -F 'selling_price_range=20,100' \
+  -F 'sort_flag=recency' \
+  'http://localhost:8080/brandeye/image_similarity_search?limit=100&scroll_token=eyJ2YWx1ZSI6IjIwMjUtMDctMjFUMDk6MDA6MDBaIiwiaWQiOiI5ODIzMzcxIn0='
+
+———
+
+Implementation Notes for Client Utility
+
+- Always send multipart/form-data, even for text-only or filter-only queries.
+- Send list fields as a single comma-separated string.
+- Treat next_token as opaque and pass it back as scroll_token for filter-only pagination.
+- Do not rely on total or scroll_token in response; the API returns next_token.

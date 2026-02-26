@@ -83,6 +83,12 @@ Your job is **surgical precision**, not unsolicited renovation.
 
 ---
 
+## Project-Specific Constraints
+
+- Frontend must only call StyleCue backend APIs. No direct calls to external services from the browser.
+
+---
+
 ### 6. Dead Code Hygiene _(priority: medium)_
 
 After refactoring or implementing changes:

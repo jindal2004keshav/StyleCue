@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Step 1 — Input Processing</title>
+  <script src="test_utils.js"></script>
+  <style id="shared"></style>
+</head>
+<body>
+  <h1>Step 1 — Input Processing</h1>
+  <p class="subtitle">POST /api/steps/process-input · Normalizes department/prompt/preferences/images → structured dict</p>
+
+  <label for="department">Department</label>
+  <select id="department" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;margin-bottom:16px">
+    <option value="women">Women</option>
+    <option value="men">Men</option>
+  </select>
+
+  <label for="message">Prompt</label>
+  <input type="text" id="message" value="I need an outfit for a summer garden party" />
+
+  <label for="preferences">Preferences (JSON)</label>
+  <textarea id="preferences" rows="4">{
+  "Occasion": "Outdoor",
+  "Fit": "Relaxed",
+  "Material": "Cotton"
+}</textarea>
+
+  <label>Images (optional — triggers LLM meta extraction)</label>
+  <input type="file" id="images" accept="image/*" multiple style="margin-bottom:16px" />
+
+  <button id="submit-btn" onclick="run()">Submit</button>
+  <div id="result"><div class="label"></div><pre></pre></div>
+
+  <script>
+    document.getElementById("shared").textContent = SHARED_STYLES;
+
+    async function run() {
+      const btn = document.getElementById("submit-btn");
+      btn.disabled = true;
+      btn.textContent = "Submitting…";
+
+      try {
+        const form = new FormData();
+        form.append("department", document.getElementById("department").value);
+        form.append("message", document.getElementById("message").value);
+        form.append("preferences", document.getElementById("preferences").value);
+
+        const files = document.getElementById("images").files;
+        for (const f of files) form.append("images", f);
+
+        const result = await apiPostForm("/steps/process-input", form);
+        showResult(result);
+      } catch (err) {
+        showError(err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = "Submit";
+      }
+    }
+  </script>
+</body>
+</html>
