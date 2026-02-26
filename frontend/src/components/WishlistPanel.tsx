@@ -1,98 +1,62 @@
-import OutfitCard from "./OutfitCard";
+import { X } from "lucide-react";
 import type { Outfit } from "../utils/api";
+import { OutfitCard } from "./OutfitCard";
 
-interface Props {
+interface WishlistPanelProps {
   isOpen: boolean;
-  onClose: () => void;
-  wishlist: Outfit[];
+  outfits: Outfit[];
   isWishlisted: (outfitId: string) => boolean;
-  onRemoveWishlist: (outfitId: string) => void;
+  onToggleOutfit: (outfit: Outfit) => void;
+  onClose: () => void;
 }
 
-export default function WishlistPanel({
+export function WishlistPanel({
   isOpen,
-  onClose,
-  wishlist,
+  outfits,
   isWishlisted,
-  onRemoveWishlist,
-}: Props) {
+  onToggleOutfit,
+  onClose,
+}: WishlistPanelProps) {
   if (!isOpen) return null;
 
   return (
     <>
-      {/* Backdrop */}
-      <div
-        onClick={onClose}
-        style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.2)",
-          zIndex: 10,
-        }}
-      />
-
-      {/* Drawer */}
-      <div
-        style={{
-          position: "fixed",
-          top: 0,
-          right: 0,
-          bottom: 0,
-          width: 360,
-          background: "#fff",
-          boxShadow: "-4px 0 20px rgba(0,0,0,0.1)",
-          zIndex: 11,
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        {/* Panel header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "16px 20px",
-            borderBottom: "1px solid #e5e7eb",
-            flexShrink: 0,
-          }}
-        >
-          <span style={{ fontWeight: 600, fontSize: 16 }}>
-            Wishlist {wishlist.length > 0 && `(${wishlist.length})`}
-          </span>
+      <div className="fixed inset-0 bg-black/30 z-50" onClick={onClose} />
+      <aside className="fixed right-0 top-0 h-full w-full max-w-md bg-white z-50 border-l border-gray-100 shadow-2xl overflow-y-auto">
+        <div className="sticky top-0 bg-white border-b border-gray-100 px-4 py-3 flex items-center justify-between">
+          <div>
+            <h2 className="text-gray-900" style={{ fontWeight: 700 }}>
+              Wishlist
+            </h2>
+            <p className="text-xs text-gray-500">Saved outfits ({outfits.length})</p>
+          </div>
           <button
+            type="button"
             onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              cursor: "pointer",
-              fontSize: 20,
-              lineHeight: 1,
-              color: "#6b7280",
-            }}
+            className="w-9 h-9 rounded-xl border border-gray-200 bg-gray-50 hover:bg-gray-100 flex items-center justify-center"
+            aria-label="Close wishlist"
           >
-            ✕
+            <X className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
-        {/* Content */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
-          {wishlist.length === 0 ? (
-            <p style={{ color: "#9ca3af", textAlign: "center", marginTop: 40, fontSize: 14 }}>
+        <div className="p-4 space-y-3">
+          {outfits.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-gray-200 p-5 text-center text-sm text-gray-500">
               No outfits saved yet.
-            </p>
+            </div>
           ) : (
-            wishlist.map((outfit) => (
+            outfits.map((outfit) => (
               <OutfitCard
                 key={outfit.id}
                 outfit={outfit}
                 isWishlisted={isWishlisted(outfit.id)}
-                onWishlist={() => onRemoveWishlist(outfit.id)}
+                onWishlist={() => onToggleOutfit(outfit)}
               />
             ))
           )}
         </div>
-      </div>
+      </aside>
     </>
   );
 }

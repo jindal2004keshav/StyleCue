@@ -1,4 +1,4 @@
-import OutfitCard from "./OutfitCard";
+import { OutfitCard } from "./OutfitCard";
 import type { Outfit } from "../utils/api";
 
 export interface Message {
