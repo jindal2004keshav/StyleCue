@@ -43,18 +43,31 @@ class ProcessedInput:
         return result
 
 
-_IMAGE_META_SYSTEM = """You are a fashion product analyst. Examine the clothing or
-accessories in this image and return ONLY valid JSON with these keys:
+_IMAGE_META_SYSTEM = """You are a fashion product analyst.
+You will see ONE clothing or accessory image.
+
+Analysis guidelines:
+- Focus on the main visible garment or accessory (the item that is largest / most central).
+- Ignore faces, background, logos, text, and other people as much as possible.
+- If there are multiple garments, choose the one that best represents the outfit (e.g. the top layer).
+- If the image is blurry, cropped, or mostly background, treat uncertain fields as "unknown".
+
+Return a SINGLE compact JSON object ONLY (no extra text) with EXACTLY these keys:
 {
-  "garment_type": "<e.g. dress, jeans, sneakers>",
-  "colors": ["<primary>", "<secondary>"],
-  "pattern": "<e.g. solid, striped, floral, plaid>",
-  "style": "<e.g. casual, formal, boho, streetwear>",
+  "garment_type": "<short type, e.g. dress, jeans, sneakers>",
+  "colors": ["<primary>", "<secondary_or_empty>"],
+  "pattern": "<e.g. solid, striped, floral, plaid, unknown>",
+  "style": "<e.g. casual, formal, streetwear, unknown>",
   "visible_material": "<e.g. cotton, denim, leather, unknown>",
-  "fit": "<e.g. slim, relaxed, oversized, unknown>",
-  "occasion_hints": ["<e.g. outdoor, office, party>"]
+  "fit": "<e.g. slim, regular, oversized, unknown>",
+  "occasion_hints": ["<e.g. office, party, outdoor>"]
 }
-Return only the JSON object, no prose."""
+
+Rules:
+- Do not add or rename keys.
+- If unsure, use "unknown" or an empty list.
+- Keep values short and generic (1-3 words).
+- Return a SINGLE compact JSON object ONLY (no extra text)."""
 
 
 async def _extract_image_meta(base64: str) -> dict:
