@@ -9,29 +9,7 @@ interface WardrobeItem {
   tags: string[];
 }
 
-const SAMPLE_ITEMS: WardrobeItem[] = [
-  {
-    id: "1",
-    url: "https://images.unsplash.com/photo-1558769132-cb1aea458c5e?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-    name: "Blue Denim Jacket",
-    category: "Outerwear",
-    tags: ["casual", "denim"],
-  },
-  {
-    id: "2",
-    url: "https://images.unsplash.com/photo-1655252205390-ad518337dd05?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-    name: "White Summer Dress",
-    category: "Dresses",
-    tags: ["summer", "casual"],
-  },
-  {
-    id: "3",
-    url: "https://images.unsplash.com/photo-1528701800487-ba01fea498c0?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=400",
-    name: "Black Trousers",
-    category: "Bottoms",
-    tags: ["formal", "office"],
-  },
-];
+const SAMPLE_ITEMS: WardrobeItem[] = [];
 
 const CATEGORIES = ["All", "Tops", "Bottoms", "Dresses", "Outerwear", "Shoes", "Accessories"];
 
@@ -120,7 +98,7 @@ export function WardrobeTab() {
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-gray-400">
           <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
-          <p>No items in this category yet</p>
+          <p>No uploaded items yet</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">

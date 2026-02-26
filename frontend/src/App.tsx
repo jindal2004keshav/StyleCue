@@ -11,7 +11,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50/40 via-white to-pink-50/30">
-      <Header userName="Alex Rivera" />
+      <Header userName="Pranam Doshi" />
 
       {/* Hero banner */}
       <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-pink-600 text-white">
