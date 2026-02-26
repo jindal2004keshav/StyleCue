@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     uploads_dir: str = "uploads"
     brandeye_search_host: str = "https://ai-search-brandeye.blr.streamoid.com"
 
+    # Qdrant (vector DB)
+    qdrant_url: str = "http://localhost:6333"
+    qdrant_collection: str = "products"
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
