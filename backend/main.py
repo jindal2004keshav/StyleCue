@@ -6,6 +6,7 @@ from fastapi.staticfiles import StaticFiles
 from config import settings
 from api.routes.chat import router as chat_router
 from api.routes.steps import router as steps_router
+from api.routes.llm_history import router as llm_history_router
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -27,6 +28,7 @@ logger.info("CORS origins configured: %s", settings.cors_origins)
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(steps_router, prefix="/api")
+app.include_router(llm_history_router, prefix="/api")
 
 # Serve uploaded images as static files at /uploads/{slug}
 _uploads_path = Path(settings.uploads_dir)

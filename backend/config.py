@@ -24,6 +24,10 @@ class Settings(BaseSettings):
     # Step 4: final response generation
     response_model: str = "gpt-5.2"
 
+    # LLM pricing placeholders (USD per 1K tokens). Leave unset to skip cost estimates.
+    llm_pricing_input_per_1k_usd: float | None = None
+    llm_pricing_output_per_1k_usd: float | None = None
+
     # App
     app_env: str = "development"
     # "null" origin is for file:// pages (tests/*.html opened directly).

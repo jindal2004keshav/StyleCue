@@ -35,7 +35,8 @@ export function OutfitCard({ outfit, isWishlisted, onWishlist }: OutfitCardProps
     [outfit.products, outfit.user_image_urls]
   );
 
-  const gridTemplateColumns = `repeat(${Math.max(1, Math.min(imageTiles.length, 6))}, minmax(0, 1fr))`;
+  const colCount = Math.max(1, Math.min(imageTiles.length, 5));
+  const gridTemplateColumns = `repeat(${colCount}, minmax(0, 1fr))`;
 
   return (
     <article className="relative w-full rounded-2xl border border-gray-100 bg-white shadow-sm overflow-hidden">
@@ -64,7 +65,7 @@ export function OutfitCard({ outfit, isWishlisted, onWishlist }: OutfitCardProps
 
       {imageTiles.length > 0 ? (
         <div
-          className="grid gap-2 p-2"
+          className="grid gap-3 p-3"
           style={{ gridTemplateColumns }}
         >
           {imageTiles.map((tile, index) => {
@@ -79,7 +80,7 @@ export function OutfitCard({ outfit, isWishlisted, onWishlist }: OutfitCardProps
                 {...wrapperProps}
                 className="group relative block overflow-hidden rounded-xl border border-gray-100"
               >
-                <div className="aspect-[4/3] w-full">
+                <div className="aspect-[2/3] w-full">
                   <img src={tile.url} alt={tile.label} className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                 </div>
                 {(tile.label || tile.priceLabel) && (

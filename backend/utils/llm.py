@@ -1,17 +1,110 @@
 """LLM SDK wrapper with lazy client initialization."""
 
 import base64
+import time
+from datetime import datetime, timezone
+from uuid import uuid4
 import anthropic
 from openai import AsyncOpenAI
 from google import genai
 from google.genai import types
 
 from utils.logger import get_logger
+from utils.llm_history import (
+    history_store,
+    get_cycle_id,
+    get_step,
+    LlmCallEvent,
+)
 
 logger = get_logger(__name__)
 _client: anthropic.AsyncAnthropic | None = None
 _gemini_client: genai.Client | None = None
 _openai_client: AsyncOpenAI | None = None
+
+
+def _utc_now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _extract_usage(provider: str, response: object) -> dict[str, int | None]:
+    input_tokens = None
+    output_tokens = None
+    total_tokens = None
+
+    usage = getattr(response, "usage", None)
+    if usage is not None:
+        input_tokens = getattr(usage, "input_tokens", None)
+        output_tokens = getattr(usage, "output_tokens", None)
+        total_tokens = getattr(usage, "total_tokens", None)
+
+    if provider == "gemini" and usage is None:
+        usage_meta = getattr(response, "usage_metadata", None)
+        if usage_meta is not None:
+            input_tokens = getattr(usage_meta, "prompt_token_count", None)
+            output_tokens = getattr(usage_meta, "candidates_token_count", None)
+            total_tokens = getattr(usage_meta, "total_token_count", None)
+
+    if total_tokens is None and input_tokens is not None and output_tokens is not None:
+        total_tokens = input_tokens + output_tokens
+
+    return {
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "total_tokens": total_tokens,
+    }
+
+
+def _estimate_cost(usage: dict[str, int | None]) -> float | None:
+    from config import settings
+
+    input_rate = settings.llm_pricing_input_per_1k_usd
+    output_rate = settings.llm_pricing_output_per_1k_usd
+    if input_rate is None and output_rate is None:
+        return None
+
+    input_tokens = usage.get("input_tokens")
+    output_tokens = usage.get("output_tokens")
+    if input_tokens is None and output_tokens is None:
+        return None
+
+    total_cost = 0.0
+    if input_rate is not None and input_tokens is not None:
+        total_cost += (input_tokens / 1000.0) * input_rate
+    if output_rate is not None and output_tokens is not None:
+        total_cost += (output_tokens / 1000.0) * output_rate
+    return total_cost
+
+
+async def _record_llm_event(
+    *,
+    provider: str,
+    model: str,
+    started_ts: datetime,
+    started_at: float,
+    usage: dict[str, int | None],
+) -> None:
+    cycle_id = get_cycle_id() or history_store.new_cycle_id()
+    step = get_step()
+    ended_ts = _utc_now()
+    duration_ms = int((time.perf_counter() - started_at) * 1000)
+    cost_estimate = _estimate_cost(usage)
+
+    event = LlmCallEvent(
+        id=uuid4().hex,
+        cycle_id=cycle_id,
+        step=step,
+        provider=provider,
+        model=model,
+        started_at=started_ts,
+        ended_at=ended_ts,
+        duration_ms=duration_ms,
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        total_tokens=usage.get("total_tokens"),
+        cost_estimate_usd=cost_estimate,
+    )
+    await history_store.add_event(event)
 
 
 def get_client() -> anthropic.AsyncAnthropic:
@@ -186,6 +279,8 @@ async def call_llm(
             "max_tokens": max_tokens,
         },
     )
+    started_at = time.perf_counter()
+    started_ts = _utc_now()
     try:
         if provider == "gemini":
             client = get_gemini_client()
@@ -200,6 +295,7 @@ async def call_llm(
                 ),
             )
             raw_text = response.text or ""
+            usage = _extract_usage(provider, response)
         elif provider == "openai":
             client = get_openai_client()
             response = await client.responses.create(
@@ -220,6 +316,7 @@ async def call_llm(
                         if text:
                             chunks.append(text)
                 raw_text = "".join(chunks)
+            usage = _extract_usage(provider, response)
         else:
             client = get_client()
             response = await client.messages.create(
@@ -229,11 +326,19 @@ async def call_llm(
                 max_tokens=max_tokens,
             )
             raw_text = response.content[0].text
+            usage = _extract_usage(provider, response)
     except Exception:
         logger.exception("LLM call failed")
         raise
 
     logger.info(raw_text)
+    await _record_llm_event(
+        provider=provider,
+        model=model,
+        started_ts=started_ts,
+        started_at=started_at,
+        usage=usage,
+    )
     return clean_llm_json_response(raw_text)
 
 
