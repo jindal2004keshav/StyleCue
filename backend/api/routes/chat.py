@@ -6,8 +6,10 @@ from fastapi import APIRouter, Form, Request, UploadFile, File
 from pydantic import BaseModel
 
 from steps import process_input, analyse_requirements, search_qdrant, generate_response
+from utils.logger import get_logger
 
 router = APIRouter()
+logger = get_logger(__name__)
 
 
 class ChatResponse(BaseModel):
@@ -31,42 +33,53 @@ async def chat(
     3. search_qdrant        — execute queries (skipped if requires_qdrant=False)
     4. generate_response    — Sonnet LLM returns structured list[Outfit]
     """
-    base_url = str(request.base_url).rstrip("/")
-
-    image_uploads = [
-        (await img.read(), img.filename or "image.jpg")
-        for img in images
-    ]
-
+    logger.info(
+        "POST /api/chat start",
+        extra={"department": department, "has_images": bool(images)},
+    )
     try:
-        prefs: dict[str, str] = json.loads(preferences)
-    except (json.JSONDecodeError, ValueError):
-        prefs = {}
+        base_url = str(request.base_url).rstrip("/")
 
-    try:
-        ctx: dict = json.loads(conversation_context)
-    except (json.JSONDecodeError, ValueError):
-        ctx = {}
+        image_uploads = [
+            (await img.read(), img.filename or "image.jpg")
+            for img in images
+        ]
 
-    processed = await process_input(
-        department=department,
-        prompt=message,
-        image_uploads=image_uploads or None,
-        preferences=prefs,
-        base_url=base_url,
-    )
+        try:
+            prefs: dict[str, str] = json.loads(preferences)
+        except (json.JSONDecodeError, ValueError):
+            prefs = {}
 
-    analyst = await analyse_requirements(processed, conversation_context=ctx or None)
+        try:
+            ctx: dict = json.loads(conversation_context)
+        except (json.JSONDecodeError, ValueError):
+            ctx = {}
 
-    products = []
-    if analyst.requires_qdrant and analyst.queries:
-        products = await search_qdrant(analyst.queries)
+        processed = await process_input(
+            department=department,
+            prompt=message,
+            image_uploads=image_uploads or None,
+            preferences=prefs,
+            base_url=base_url,
+        )
 
-    outfits = await generate_response(
-        processed, analyst, products, conversation_context=ctx or None
-    )
+        analyst = await analyse_requirements(processed, conversation_context=ctx or None)
 
-    return ChatResponse(
-        outfits=[o.to_dict() for o in outfits],
-        reasoning=analyst.reasoning,
-    )
+        products = []
+        if analyst.requires_qdrant and analyst.queries:
+            products = await search_qdrant(analyst.queries)
+
+        outfits = await generate_response(
+            processed, analyst, products, conversation_context=ctx or None
+        )
+
+        return ChatResponse(
+            outfits=[o.to_dict() for o in outfits],
+            reasoning=analyst.reasoning,
+        )
+    except Exception:
+        logger.exception(
+            "POST /api/chat failed",
+            extra={"department": department, "has_images": bool(images)},
+        )
+        raise

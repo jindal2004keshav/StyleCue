@@ -1,10 +1,14 @@
-"""Persist uploaded images to disk and return a downloadable URL."""
+"""Upload images to the Catalogix image service and return a hosted URL."""
 
-import os
+import mimetypes
 import uuid
 import re
-from pathlib import Path
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
+_UPLOAD_ENDPOINT = "https://image-upload.catalogix.ai/"
 
 def _slugify(filename: str) -> str:
     """Convert an original filename into a safe slug, keeping the extension."""
@@ -15,23 +19,39 @@ def _slugify(filename: str) -> str:
 
 
 def save_image(raw: bytes, original_filename: str, base_url: str) -> tuple[str, str]:
-    """Save raw image bytes to the uploads directory.
+    """Upload raw image bytes and return a hosted URL.
 
     Args:
         raw: Image bytes.
-        original_filename: Original filename from the upload (used to derive slug).
-        base_url: Server base URL, e.g. "http://localhost:8000".
+        original_filename: Original filename from the upload (used for content type).
+        base_url: Unused; kept for API compatibility.
 
     Returns:
-        (slug, url) where url is a downloadable link to the saved file.
+        (slug, url) where url is the hosted image URL.
     """
-    from config import settings
+    import httpx
 
-    uploads_dir = Path(settings.uploads_dir)
-    uploads_dir.mkdir(parents=True, exist_ok=True)
+    content_type, _ = mimetypes.guess_type(original_filename)
+    content_type = content_type or "application/octet-stream"
+    filename = original_filename or _slugify("image.jpg")
 
-    slug = _slugify(original_filename)
-    (uploads_dir / slug).write_bytes(raw)
+    files = {
+        "image_data": (filename, raw, content_type),
+    }
 
-    url = f"{base_url.rstrip('/')}/uploads/{slug}"
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            resp = client.post(_UPLOAD_ENDPOINT, files=files)
+            resp.raise_for_status()
+    except Exception:
+        logger.exception("Image upload failed")
+        raise
+
+    data = resp.json().get("data", {})
+    url = data.get("cloudfront_url") or data.get("s3_link") or data.get("url")
+    if not url:
+        raise ValueError("Image upload succeeded but no URL was returned")
+
+    slug = data.get("imageId") or _slugify(original_filename)
+    logger.info("Uploaded image", extra={"slug": slug, "url": url})
     return slug, url

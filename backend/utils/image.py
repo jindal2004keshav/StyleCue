@@ -2,6 +2,9 @@
 
 import base64
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 def bytes_to_base64(data: bytes) -> str:
     """Encode raw image bytes to a base64 string."""

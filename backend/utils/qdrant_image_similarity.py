@@ -8,6 +8,9 @@ from typing import Iterable
 from fastapi import UploadFile
 
 from config import settings
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -35,13 +38,27 @@ class ImageSimilaritySearchParams:
     filters: ImageSimilarityFilters = field(default_factory=ImageSimilarityFilters)
 
 
+def _normalize_comma_string(value: str) -> str:
+    return ",".join(part.strip() for part in value.split(","))
+
+
+def _normalize_iterable(values: Iterable[str | int | float]) -> str:
+    parts: list[str] = []
+    for item in values:
+        if isinstance(item, str):
+            parts.append(item.strip())
+        else:
+            parts.append(str(item))
+    return ",".join(parts)
+
+
 def _append_comma_list(payload: dict[str, str], key: str, value: Iterable[str] | str | None) -> None:
     if value is None:
         return
     if isinstance(value, str):
-        payload[key] = value
+        payload[key] = _normalize_comma_string(value)
         return
-    payload[key] = ",".join(value)
+    payload[key] = _normalize_iterable(value)
 
 
 def _append_range(
@@ -51,10 +68,13 @@ def _append_range(
 ) -> None:
     if value is None:
         return
-    if isinstance(value, (str, int, float)):
+    if isinstance(value, str):
+        payload[key] = _normalize_comma_string(value)
+        return
+    if isinstance(value, (int, float)):
         payload[key] = str(value)
         return
-    payload[key] = ",".join(str(v) for v in value)
+    payload[key] = _normalize_iterable(value)
 
 
 def _append_store_uuid(
@@ -65,9 +85,9 @@ def _append_store_uuid(
     if value is None:
         return
     if isinstance(value, str):
-        payload[key] = value
+        payload[key] = _normalize_comma_string(value)
         return
-    payload[key] = ",".join(value)
+    payload[key] = _normalize_iterable(value)
 
 
 def build_image_similarity_payload(params: ImageSimilaritySearchParams) -> dict[str, str]:
@@ -112,4 +132,6 @@ def build_image_similarity_query_params(params: ImageSimilaritySearchParams) -> 
 
 def get_image_similarity_url() -> str:
     """Return the base URL for the image similarity search endpoint."""
-    return f\"{settings.brandeye_search_host}/brandeye/image_similarity_search\"
+    url = f"{settings.brandeye_search_host}/brandeye/image_similarity_search"
+    logger.info("Resolved BrandEye URL", extra={"url": url})
+    return url

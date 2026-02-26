@@ -3,12 +3,15 @@
 import json
 from dataclasses import dataclass, field
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 @dataclass
 class ProcessedImage:
     slug: str
     meta: dict          # LLM-extracted fashion attributes
-    url: str            # downloadable URL served from /uploads/
+    url: str            # hosted URL for the uploaded image
     base64: str         # kept in-memory for LLM vision calls; not in output dict
 
 
@@ -76,6 +79,7 @@ async def _extract_image_meta(base64: str) -> dict:
     try:
         return json.loads(raw)
     except json.JSONDecodeError:
+        logger.error("Image meta extraction returned invalid JSON")
         return {"raw": raw}
 
 
@@ -93,13 +97,22 @@ async def process_input(
         prompt: Free-form user styling request.
         image_uploads: List of (raw_bytes, original_filename) pairs.
         preferences: Optional preference dict (Material, Fit, Occasion, etc.).
-        base_url: Backend base URL used to build downloadable image URLs.
+        base_url: Unused for hosted uploads; kept for compatibility.
 
     Returns:
         ProcessedInput whose .to_dict() matches the v2 input spec.
     """
     from utils.image import bytes_to_base64
     from utils.storage import save_image
+
+    logger.info(
+        "Processing input",
+        extra={
+            "department": department,
+            "has_images": bool(image_uploads),
+            "image_count": len(image_uploads or []),
+        },
+    )
 
     processed_images: list[ProcessedImage] = []
     for raw, filename in (image_uploads or []):
