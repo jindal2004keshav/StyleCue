@@ -18,6 +18,8 @@ class Outfit:
     explanation: str             # why this outfit suits the user's request
     products: list[Product] = field(default_factory=list)
     user_image_urls: list[str] = field(default_factory=list)
+    total_cost: float = 0.0
+    currency: str = "USD"
 
     def to_dict(self) -> dict:
         return {
@@ -26,6 +28,8 @@ class Outfit:
             "explanation": self.explanation,
             "products": [p.to_dict() for p in self.products],
             "user_image_urls": self.user_image_urls,
+            "total_cost": self.total_cost,
+            "currency": self.currency,
         }
 
 
@@ -114,7 +118,7 @@ async def generate_response(
     )
 
     product_lines = "\n".join(
-        f"- id={p.id} [{p.name}]({p.pdp_url}) (${p.price:.2f}, {p.category}): {p.description}"
+        f"- id={p.id} [{p.name}]({p.pdp_url}) ({p.currency} {p.price:.2f}, {p.category}, {p.brand}): {p.description}"
         for p in products
     ) or "None — work only with the user's uploaded items."
 
@@ -176,12 +180,20 @@ async def generate_response(
             for slug in raw_outfit.get("user_image_slugs", [])
             if slug in slug_to_url
         ]
+        currency = "USD"
+        for product in resolved_products:
+            if product.currency:
+                currency = product.currency
+                break
+        total_cost = sum(product.price for product in resolved_products)
         outfits.append(Outfit(
             id=raw_outfit.get("id", f"outfit-{len(outfits) + 1}"),
             name=raw_outfit.get("name", "Outfit"),
             explanation=raw_outfit.get("explanation", ""),
             products=resolved_products,
             user_image_urls=resolved_urls,
+            total_cost=total_cost,
+            currency=currency,
         ))
 
     valid_outfits = [

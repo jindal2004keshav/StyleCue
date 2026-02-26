@@ -323,19 +323,21 @@ export function OutfitTab() {
                       <User className="w-4 h-4 text-gray-500" />
                     </div>
                   )}
-                  <div
-                    className={`max-w-xl px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                      msg.role === "user"
-                        ? "bg-gradient-to-br from-violet-500 to-pink-500 text-white rounded-br-sm"
-                        : "bg-gray-100 text-gray-700 rounded-bl-sm border border-gray-100"
-                    }`}
-                  >
-                    {msg.text}
-                  </div>
+                  {((msg.role === "user") || !msg.outfits || msg.outfits.length === 0) && (
+                    <div
+                      className={`max-w-xl px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                        msg.role === "user"
+                          ? "bg-gradient-to-br from-violet-500 to-pink-500 text-white rounded-br-sm"
+                          : "bg-gray-100 text-gray-700 rounded-bl-sm border border-gray-100"
+                      }`}
+                    >
+                      {msg.text}
+                    </div>
+                  )}
                 </div>
 
                 {msg.outfits && msg.outfits.length > 0 && (
-                  <div className="ml-10 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="w-full space-y-3">
                     {msg.outfits.map((outfit) => (
                       <OutfitCard
                         key={`${msg.id}-${outfit.id}`}

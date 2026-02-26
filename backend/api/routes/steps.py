@@ -23,7 +23,8 @@ class ProcessInputResponse(BaseModel):
 async def process_input_step(
     request: Request,
     department: str = Form(...),
-    message: str = Form(...),
+    prompt: str | None = Form(None),
+    message: str | None = Form(None),
     preferences: str = Form("{}"),
     images: list[UploadFile] = File(default=[]),
 ) -> ProcessInputResponse:
@@ -43,9 +44,13 @@ async def process_input_step(
         except (json.JSONDecodeError, ValueError):
             prefs = {}
 
+        resolved_prompt = (prompt or "").strip() or (message or "").strip()
+        if not resolved_prompt:
+            raise ValueError("Missing required prompt.")
+
         processed = await process_input(
             department=department,
-            prompt=message,
+            prompt=resolved_prompt,
             image_uploads=image_uploads or None,
             preferences=prefs,
             base_url=base_url,

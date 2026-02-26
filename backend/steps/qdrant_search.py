@@ -12,9 +12,12 @@ logger = get_logger(__name__)
 class Product:
     id: str
     name: str
+    brand: str
     category: str
     price: float
+    currency: str
     image_url: str
+    image_urls: list[str]
     pdp_url: str        # product detail page URL
     description: str
     metadata: dict = field(default_factory=dict)
@@ -23,13 +26,68 @@ class Product:
         return {
             "id": self.id,
             "name": self.name,
+            "brand": self.brand,
             "category": self.category,
             "price": self.price,
+            "currency": self.currency,
             "image_url": self.image_url,
+            "image_urls": self.image_urls,
             "pdp_url": self.pdp_url,
             "description": self.description,
             "metadata": self.metadata,
         }
+
+
+def _parse_price(value: object) -> float:
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _extract_price(point: dict) -> float:
+    selling = (
+        point.get("selling_price")
+        or point.get("Selling Price")
+        or point.get("SellingPrice")
+        or point.get("sellingPrice")
+    )
+    if selling is not None:
+        return _parse_price(selling)
+    mrp = point.get("MRP") or point.get("mrp")
+    return _parse_price(mrp)
+
+
+def _extract_currency(point: dict) -> str:
+    currency = point.get("Currency") or point.get("currency")
+    return str(currency).strip() if currency else "USD"
+
+
+def _extract_brand(point: dict) -> str:
+    brand = point.get("brand") or point.get("Brand") or point.get("source")
+    return str(brand).strip() if brand else ""
+
+
+def _extract_image_urls(point: dict) -> list[str]:
+    urls: list[str] = []
+    for key in ("image_urls", "images"):
+        value = point.get(key)
+        if isinstance(value, list):
+            urls.extend([str(v) for v in value if v])
+        elif isinstance(value, str) and value:
+            urls.append(value)
+    for key in ("image_url", "image"):
+        value = point.get(key)
+        if isinstance(value, str) and value:
+            urls.append(value)
+    # Preserve order while de-duplicating
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for url in urls:
+        if url not in seen:
+            seen.add(url)
+            deduped.append(url)
+    return deduped
 
 
 async def _run_single_query(query: QdrantQuery) -> list[Product]:
@@ -65,7 +123,7 @@ async def _run_single_query(query: QdrantQuery) -> list[Product]:
     params = ImageSimilaritySearchParams(
         query_text=query.text_query,
         limit=query.top_k,
-        sort_flag="popularity",
+        sort_flag="relevance",
         filters=filters,
     )
 
@@ -95,16 +153,41 @@ async def _run_single_query(query: QdrantQuery) -> list[Product]:
     raw_results: list[dict] = resp.json()["image_similarity"]["results"]
 
     # Fields consumed explicitly; everything else goes into metadata
-    _known_point = {"title", "category", "selling_price", "image_url", "pdp_url", "url", "description"}
+    _known_point = {
+        "title",
+        "category",
+        "selling_price",
+        "Selling Price",
+        "SellingPrice",
+        "sellingPrice",
+        "MRP",
+        "mrp",
+        "image_url",
+        "image_urls",
+        "image",
+        "images",
+        "pdp_url",
+        "url",
+        "description",
+        "brand",
+        "Brand",
+        "Currency",
+        "currency",
+        "source",
+    }
     products: list[Product] = []
     for result in raw_results:
         point: dict = result.get("point") or {}
+        image_urls = _extract_image_urls(point)
         products.append(Product(
             id=str(result.get("point_id", "")),
             name=point.get("title", ""),
+            brand=_extract_brand(point),
             category=point.get("category", ""),
-            price=float(point.get("selling_price", 0.0)),
-            image_url=point.get("image_url", ""),
+            price=_extract_price(point),
+            currency=_extract_currency(point),
+            image_url=image_urls[0] if image_urls else "",
+            image_urls=image_urls,
             pdp_url=point.get("pdp_url", point.get("url", "")),
             description=point.get("description", ""),
             metadata={k: v for k, v in point.items() if k not in _known_point},

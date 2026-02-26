@@ -1,9 +1,12 @@
 export interface Product {
   id: string;
   name: string;
+  brand: string;
   category: string;
   price: number;
+  currency: string;
   image_url: string;
+  image_urls: string[];
   pdp_url: string;
   description?: string;
   metadata?: Record<string, unknown>;
@@ -15,6 +18,8 @@ export interface Outfit {
   explanation: string;
   products: Product[];
   user_image_urls: string[];
+  total_cost: number;
+  currency: string;
 }
 
 export interface ConversationContext {

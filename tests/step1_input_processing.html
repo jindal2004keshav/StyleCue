@@ -16,8 +16,8 @@
     <option value="men">Men</option>
   </select>
 
-  <label for="message">Prompt</label>
-  <input type="text" id="message" value="I need an outfit for a summer garden party" />
+  <label for="prompt">Prompt</label>
+  <input type="text" id="prompt" value="I need an outfit for a summer garden party" />
 
   <label for="preferences">Preferences (JSON)</label>
   <textarea id="preferences" rows="4">{
@@ -43,7 +43,7 @@
       try {
         const form = new FormData();
         form.append("department", document.getElementById("department").value);
-        form.append("message", document.getElementById("message").value);
+        form.append("prompt", document.getElementById("prompt").value);
         form.append("preferences", document.getElementById("preferences").value);
 
         const files = document.getElementById("images").files;

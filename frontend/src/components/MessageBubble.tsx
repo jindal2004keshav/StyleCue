@@ -21,6 +21,7 @@ export default function MessageBubble({
   onRemoveWishlist,
 }: Props) {
   const isUser = message.role === "user";
+  const hasOutfits = Boolean(message.outfits && message.outfits.length > 0);
 
   return (
     <div
@@ -30,9 +31,9 @@ export default function MessageBubble({
         marginBottom: 12,
       }}
     >
-      <div style={{ maxWidth: "80%", display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ maxWidth: isUser ? "80%" : "100%", display: "flex", flexDirection: "column", gap: 8, flex: 1 }}>
         {/* Text bubble — only shown when there is content */}
-        {message.content && (
+        {message.content && (!hasOutfits || isUser) && (
           <div
             style={{
               padding: "10px 14px",
@@ -50,7 +51,7 @@ export default function MessageBubble({
 
         {/* Outfit cards rendered inline for assistant messages */}
         {!isUser && message.outfits && message.outfits.length > 0 && (
-          <div>
+          <div style={{ width: "100%" }}>
             {message.outfits.map((outfit) => (
               <OutfitCard
                 key={outfit.id}
