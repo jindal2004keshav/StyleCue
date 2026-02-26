@@ -62,6 +62,17 @@ OUTFIT COMPOSITION RULES (OUTFIT MATCHMAKER):
 - Each individual outfit must contain AT MOST ONE primary TOP (e.g. shirt, T-shirt, blouse,
   knit, sweater) and AT MOST ONE primary BOTTOM (e.g. trousers, jeans, chinos, shorts, skirt)
   across both catalogue products and user-uploaded items.
+- Each individual outfit must contain AT MOST ONE OUTERWEAR and AT MOST ONE FOOTWEAR across both
+  catalogue products and user-uploaded items. (Accessories may be multiple, but keep them minimal.)
+- CATEGORY UNIQUENESS (CRITICAL): within a single outfit, do NOT include two items of the same
+  garment role/category across sources. That means:
+  - Do not pick two TOPS even if one is a user image and one is a catalogue product.
+  - Do not pick two BOTTOMS even if both are user images.
+  - Same rule applies for OUTERWEAR and FOOTWEAR.
+- If multiple user-uploaded items of the same role (e.g. two shirts) could work with the same
+  suggested catalogue item(s), do NOT combine them into one outfit. Instead, create separate
+  outfits/variants (e.g. "Outfit 1A - with user shirt A" and "Outfit 1B - with user shirt B"),
+  each outfit containing only one item per role.
 - If you want to propose multiple alternative tops or bottoms, create separate outfits
   (e.g. "Outfit 1A - with white shirt", "Outfit 1B - with blue shirt") instead of putting
   2 shirts and 1 pant together in a single outfit.
@@ -151,7 +162,11 @@ async def generate_response(
     )
 
     product_lines = "\n".join(
-        f"- id={p.id} [{p.name}]({p.pdp_url}) ({p.currency} {p.price:.2f}, {p.category}, {p.brand}): {p.description}"
+        (
+            f"- id={p.id} [{p.name}]({p.pdp_url}) "
+            f"({p.currency} {p.price:.2f}, {p.category}, {p.brand}): {p.description} "
+            f"| metadata={json.dumps(p.metadata, ensure_ascii=False)[:300]}"
+        )
         for p in products
     ) or "None — work only with the user's uploaded items."
 
@@ -167,8 +182,11 @@ async def generate_response(
     context_text += f"\nCatalogue products retrieved:\n{product_lines}"
 
     if processed.images:
-        slug_lines = "\n".join(f"  slug={img.slug}" for img in processed.images)
-        context_text += f"\nUser uploaded image slugs:\n{slug_lines}"
+        image_lines = "\n".join(
+            f"  slug={img.slug} url={img.url} meta={json.dumps(img.meta, ensure_ascii=False)}"
+            for img in processed.images
+        )
+        context_text += f"\nUser uploaded images (slug/url/meta):\n{image_lines}"
 
     if conversation_context:
         ctx_block = _build_conversation_context_block(conversation_context)
@@ -178,10 +196,12 @@ async def generate_response(
     user_content: list[dict] = [{"type": "text", "text": context_text}]
 
     # Attach user-uploaded images so the LLM can see them directly
+    from utils.image import get_media_type_from_base64
     for img in processed.images:
+        media_type = get_media_type_from_base64(img.base64)
         user_content.append({
             "type": "image",
-            "source": {"type": "base64", "media_type": "image/jpeg", "data": img.base64},
+            "source": {"type": "base64", "media_type": media_type, "data": img.base64},
         })
 
     raw = await call_llm(
