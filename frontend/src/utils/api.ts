@@ -37,6 +37,7 @@ export interface ChatPayload {
   preferences?: Record<string, string>;
   images?: File[];
   conversationContext?: ConversationContext | null;
+  llmProvider?: "anthropic" | "gemini";
 }
 
 export interface ChatResponse {
@@ -63,6 +64,10 @@ export async function sendChat(payload: ChatPayload): Promise<ChatResponse> {
 
   if (payload.conversationContext) {
     formData.append("conversation_context", JSON.stringify(payload.conversationContext));
+  }
+
+  if (payload.llmProvider) {
+    formData.append("llm_provider", payload.llmProvider);
   }
 
   (payload.images ?? []).forEach((file) => {

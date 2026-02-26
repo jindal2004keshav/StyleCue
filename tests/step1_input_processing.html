@@ -26,6 +26,12 @@
   "Material": "Cotton"
 }</textarea>
 
+  <label for="llm_provider">LLM Provider</label>
+  <select id="llm_provider" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;margin-bottom:16px">
+    <option value="">Default (Gemini)</option>
+    <option value="anthropic">Anthropic</option>
+  </select>
+
   <label>Images (optional — triggers LLM meta extraction)</label>
   <input type="file" id="images" accept="image/*" multiple style="margin-bottom:16px" />
 
@@ -45,6 +51,8 @@
         form.append("department", document.getElementById("department").value);
         form.append("prompt", document.getElementById("prompt").value);
         form.append("preferences", document.getElementById("preferences").value);
+        const provider = document.getElementById("llm_provider").value;
+        if (provider) form.append("llm_provider", provider);
 
         const files = document.getElementById("images").files;
         for (const f of files) form.append("images", f);

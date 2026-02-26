@@ -73,7 +73,7 @@ Rules:
 - Return a SINGLE compact JSON object ONLY (no extra text)."""
 
 
-async def _extract_image_meta(base64: str) -> dict:
+async def _extract_image_meta(base64: str, llm_provider: str | None = None) -> dict:
     """Call the analyst LLM to extract fashion attributes from an image."""
     from utils.llm import call_llm
 
@@ -88,6 +88,7 @@ async def _extract_image_meta(base64: str) -> dict:
         }],
         model_key="analyst_model",
         max_tokens=256,
+        llm_provider=llm_provider,
     )
     try:
         return json.loads(raw)
@@ -102,6 +103,7 @@ async def process_input(
     image_uploads: list[tuple[bytes, str]] | None = None,
     preferences: dict[str, str] | None = None,
     base_url: str = "http://localhost:8000",
+    llm_provider: str | None = None,
 ) -> ProcessedInput:
     """Normalize raw user inputs into a ProcessedInput.
 
@@ -131,7 +133,7 @@ async def process_input(
     for raw, filename in (image_uploads or []):
         b64 = bytes_to_base64(raw)
         slug, url = save_image(raw, filename, base_url)
-        meta = await _extract_image_meta(b64)
+        meta = await _extract_image_meta(b64, llm_provider=llm_provider)
         processed_images.append(ProcessedImage(slug=slug, meta=meta, url=url, base64=b64))
 
     return ProcessedInput(

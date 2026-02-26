@@ -90,6 +90,7 @@ async def generate_response(
     analyst: AnalystOutput,
     products: list[Product],
     conversation_context: dict | None = None,
+    llm_provider: str | None = None,
 ) -> list[Outfit]:
     """Generate structured outfit recommendations.
 
@@ -156,6 +157,7 @@ async def generate_response(
         messages=[{"role": "user", "content": user_content}],
         model_key="response_model",
         max_tokens=2048,
+        llm_provider=llm_provider,
     )
 
     try:

@@ -12,6 +12,7 @@ import {
   Heart,
 } from "lucide-react";
 import { sendChat, type ConversationContext, type Outfit } from "../utils/api";
+import { getProviderFromQuery } from "../utils/provider";
 import { useWishlist } from "../hooks/useWishlist";
 import { OutfitCard } from "./OutfitCard";
 import { WishlistPanel } from "./WishlistPanel";
@@ -95,6 +96,7 @@ export function OutfitTab() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatInputRef = useRef<HTMLInputElement>(null);
+  const provider = getProviderFromQuery();
 
   const { wishlist, addOutfit, removeOutfit, isWishlisted } = useWishlist();
 
@@ -171,6 +173,7 @@ export function OutfitTab() {
         prompt,
         preferences,
         images: uploadedImages.map((item) => item.file),
+        llmProvider: provider,
       });
 
       setSubmittedInput({ department: selectedDepartment, images: uploadedImages, description, material, fit, occasion });
@@ -211,6 +214,7 @@ export function OutfitTab() {
         prompt: text,
         preferences: conversationContext?.initial_request.preferences ?? {},
         conversationContext,
+        llmProvider: provider,
       });
 
       setChatMessages((prev) => [

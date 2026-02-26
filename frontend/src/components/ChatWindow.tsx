@@ -4,6 +4,7 @@ import Preferences from "./Preferences";
 import { WishlistPanel } from "./WishlistPanel";
 import type { Message } from "./MessageBubble";
 import { sendChat } from "../utils/api";
+import { getProviderFromQuery } from "../utils/provider";
 import type { ConversationContext } from "../utils/api";
 import { useWishlist } from "../hooks/useWishlist";
 
@@ -22,6 +23,7 @@ export default function ChatWindow() {
   const [wishlistOpen, setWishlistOpen] = useState(false);
   const [conversationContext, setConversationContext] = useState<ConversationContext | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const provider = getProviderFromQuery();
 
   const { wishlist, addOutfit, removeOutfit, isWishlisted } = useWishlist();
 
@@ -40,6 +42,7 @@ export default function ChatWindow() {
         preferences,
         images,
         conversationContext: conversationContext ?? undefined,
+        llmProvider: provider,
       });
 
       setMessages((prev) => [

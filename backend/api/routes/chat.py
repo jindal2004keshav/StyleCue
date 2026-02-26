@@ -10,6 +10,16 @@ from utils.logger import get_logger
 
 router = APIRouter()
 logger = get_logger(__name__)
+_ALLOWED_PROVIDERS = {"anthropic", "gemini"}
+
+
+def _normalize_provider(value: str | None) -> str | None:
+    if value is None:
+        return None
+    normalized = value.strip().lower()
+    if normalized not in _ALLOWED_PROVIDERS:
+        raise ValueError(f"Invalid llm_provider: {value}")
+    return normalized
 
 
 class ChatResponse(BaseModel):
@@ -25,6 +35,7 @@ async def chat(
     message: str | None = Form(None),
     preferences: str = Form("{}"),            # JSON-encoded dict
     conversation_context: str = Form("{}"),   # JSON-encoded ConversationContext
+    llm_provider: str | None = Form(None),
     images: list[UploadFile] = File(default=[]),
 ) -> ChatResponse:
     """Run the full StyleCue v2 pipeline.
@@ -60,22 +71,33 @@ async def chat(
         if not resolved_prompt:
             raise ValueError("Missing required prompt.")
 
+        provider = _normalize_provider(llm_provider)
+
         processed = await process_input(
             department=department,
             prompt=resolved_prompt,
             image_uploads=image_uploads or None,
             preferences=prefs,
             base_url=base_url,
+            llm_provider=provider,
         )
 
-        analyst = await analyse_requirements(processed, conversation_context=ctx or None)
+        analyst = await analyse_requirements(
+            processed,
+            conversation_context=ctx or None,
+            llm_provider=provider,
+        )
 
         products = []
         if analyst.requires_qdrant and analyst.queries:
             products = await search_qdrant(analyst.queries)
 
         outfits = await generate_response(
-            processed, analyst, products, conversation_context=ctx or None
+            processed,
+            analyst,
+            products,
+            conversation_context=ctx or None,
+            llm_provider=provider,
         )
 
         return ChatResponse(

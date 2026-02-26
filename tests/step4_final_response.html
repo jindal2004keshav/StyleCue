@@ -58,6 +58,12 @@
   <label for="conversation_context">Conversation Context (JSON, optional)</label>
   <textarea id="conversation_context" rows="3">{}</textarea>
 
+  <label for="llm_provider">LLM Provider</label>
+  <select id="llm_provider" style="width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:6px;font-size:14px;margin-bottom:16px">
+    <option value="">Default (Gemini)</option>
+    <option value="anthropic">Anthropic</option>
+  </select>
+
   <button id="submit-btn" onclick="run()">Submit</button>
   <div id="result"><div class="label"></div><pre></pre></div>
 
@@ -86,6 +92,7 @@
           requires_qdrant: document.getElementById("requires_qdrant").value === "true",
           products,
           conversation_context,
+          llm_provider: document.getElementById("llm_provider").value || undefined,
         });
         // result.outfits is the new shape
         showResult(result);

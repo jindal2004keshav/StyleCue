@@ -79,6 +79,7 @@ Target categories are restricted to: Shirts, T-Shirts, Trousers, Shorts, Jackets
 async def analyse_requirements(
     processed: ProcessedInput,
     conversation_context: dict | None = None,
+    llm_provider: str | None = None,
 ) -> AnalystOutput:
     """Analyse user requirements and produce Qdrant queries with reasoning.
 
@@ -141,6 +142,7 @@ async def analyse_requirements(
         messages=[{"role": "user", "content": user_content}],
         model_key="analyst_model",
         max_tokens=1024,
+        llm_provider=llm_provider,
     )
 
     try:

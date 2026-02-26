@@ -1,11 +1,15 @@
-"""Anthropic SDK wrapper with lazy client initialization."""
+"""LLM SDK wrapper with lazy client initialization."""
 
+import base64
 import anthropic
+from google import genai
+from google.genai import types
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 _client: anthropic.AsyncAnthropic | None = None
+_gemini_client: genai.Client | None = None
 
 
 def get_client() -> anthropic.AsyncAnthropic:
@@ -16,6 +20,16 @@ def get_client() -> anthropic.AsyncAnthropic:
         logger.info("Initializing Anthropic client")
         _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
+
+
+def get_gemini_client() -> genai.Client:
+    """Return the singleton Gemini client, initializing on first call."""
+    global _gemini_client
+    if _gemini_client is None:
+        from config import settings
+        logger.info("Initializing Gemini client")
+        _gemini_client = genai.Client(api_key=settings.gemini_api_key)
+    return _gemini_client
 
 
 def clean_llm_json_response(text: str) -> str:
@@ -39,13 +53,63 @@ def clean_llm_json_response(text: str) -> str:
     return normalized.strip()
 
 
+def _get_model_for_provider(model_key: str, provider: str) -> str:
+    from config import settings
+
+    if provider == "gemini":
+        return getattr(settings, f"gemini_{model_key}", getattr(settings, model_key))
+    if provider == "anthropic":
+        return getattr(settings, f"anthropic_{model_key}", getattr(settings, model_key))
+    return getattr(settings, model_key)
+
+
+def _to_gemini_contents(messages: list[dict]) -> list[types.Content]:
+    contents: list[types.Content] = []
+    for message in messages:
+        role = "model" if message.get("role") == "assistant" else "user"
+        content = message.get("content", "")
+        parts: list[types.Part] = []
+
+        if isinstance(content, list):
+            for item in content:
+                if not isinstance(item, dict):
+                    parts.append(types.Part.from_text(text=str(item)))
+                    continue
+                if item.get("type") == "text":
+                    parts.append(types.Part.from_text(text=item.get("text", "")))
+                    continue
+                if item.get("type") == "image":
+                    source = item.get("source", {})
+                    data = source.get("data", "")
+                    media_type = source.get("media_type", "image/jpeg")
+                    if data:
+                        parts.append(
+                            types.Part.from_bytes(
+                                data=base64.b64decode(data),
+                                mime_type=media_type,
+                            )
+                        )
+                    continue
+                if "text" in item:
+                    parts.append(types.Part.from_text(text=str(item.get("text", ""))))
+                else:
+                    parts.append(types.Part.from_text(text=str(item)))
+        else:
+            parts.append(types.Part.from_text(text=str(content)))
+
+        contents.append(types.Content(role=role, parts=parts))
+
+    return contents
+
+
 async def call_llm(
     system: str,
     messages: list[dict],
     model_key: str = "response_model",
     max_tokens: int = 1024,
+    llm_provider: str | None = None,
 ) -> str:
-    """Send a message to Claude and return the text response.
+    """Send a message to the configured LLM and return the text response.
 
     Args:
         system: System prompt string.
@@ -58,25 +122,43 @@ async def call_llm(
     """
     from config import settings
 
-    model = getattr(settings, model_key)
-    client = get_client()
-
+    provider = (llm_provider or settings.llm_provider).lower().strip()
+    model = _get_model_for_provider(model_key, provider)
     logger.info(
         "Calling LLM",
-        extra={"model": model, "message_count": len(messages), "max_tokens": max_tokens},
+        extra={
+            "provider": provider,
+            "model": model,
+            "message_count": len(messages),
+            "max_tokens": max_tokens,
+        },
     )
     try:
-        response = await client.messages.create(
-            model=model,
-            system=system,
-            messages=messages,
-            max_tokens=max_tokens,
-        )
+        if provider == "gemini":
+            client = get_gemini_client()
+            contents = _to_gemini_contents(messages)
+            response = await client.aio.models.generate_content(
+                model=model,
+                contents=contents,
+                config=types.GenerateContentConfig(
+                    system_instruction=system,
+                    max_output_tokens=max_tokens,
+                ),
+            )
+            raw_text = response.text or ""
+        else:
+            client = get_client()
+            response = await client.messages.create(
+                model=model,
+                system=system,
+                messages=messages,
+                max_tokens=max_tokens,
+            )
+            raw_text = response.content[0].text
     except Exception:
         logger.exception("LLM call failed")
         raise
-    
-    raw_text = response.content[0].text
+
     logger.info(raw_text)
     return clean_llm_json_response(raw_text)
 
