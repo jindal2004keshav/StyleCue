@@ -1,4 +1,3 @@
-import os
 from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -7,6 +6,9 @@ from fastapi.staticfiles import StaticFiles
 from config import settings
 from api.routes.chat import router as chat_router
 from api.routes.steps import router as steps_router
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 app = FastAPI(
     title="StyleCue API",
@@ -21,6 +23,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+logger.info("CORS origins configured: %s", settings.cors_origins)
 
 app.include_router(chat_router, prefix="/api")
 app.include_router(steps_router, prefix="/api")

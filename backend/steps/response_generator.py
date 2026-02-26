@@ -6,6 +6,9 @@ from dataclasses import dataclass, field
 from steps.input_processor import ProcessedInput
 from steps.requirement_analyst import AnalystOutput
 from steps.qdrant_search import Product
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -100,6 +103,16 @@ async def generate_response(
     """
     from utils.llm import call_llm
 
+    logger.info(
+        "Generating response",
+        extra={
+            "department": processed.department,
+            "product_count": len(products),
+            "image_count": len(processed.images),
+            "has_context": bool(conversation_context),
+        },
+    )
+
     product_lines = "\n".join(
         f"- id={p.id} [{p.name}]({p.pdp_url}) (${p.price:.2f}, {p.category}): {p.description}"
         for p in products
@@ -141,7 +154,11 @@ async def generate_response(
         max_tokens=2048,
     )
 
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("Response generator output was not valid JSON")
+        raise
 
     # Build lookup maps for resolution
     products_by_id: dict[str, Product] = {p.id: p for p in products}
@@ -167,4 +184,23 @@ async def generate_response(
             user_image_urls=resolved_urls,
         ))
 
-    return outfits
+    valid_outfits = [
+        outfit
+        for outfit in outfits
+        if (len(outfit.products) + len(outfit.user_image_urls)) >= 2
+    ]
+
+    if not valid_outfits:
+        return [Outfit(
+            id="outfit-1",
+            name="Suggestion",
+            explanation=(
+                "I need at least two items to build a complete outfit. "
+                "Try adding another piece you like or describing an extra item "
+                "you're looking for, and I can complete the look."
+            ),
+            products=[],
+            user_image_urls=[],
+        )]
+
+    return valid_outfits

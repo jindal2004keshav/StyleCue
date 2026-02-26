@@ -4,6 +4,9 @@ import json
 from dataclasses import dataclass, field
 
 from steps.input_processor import ProcessedInput
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -91,6 +94,15 @@ async def analyse_requirements(
     """
     from utils.llm import call_llm
 
+    logger.info(
+        "Analysing requirements",
+        extra={
+            "department": processed.department,
+            "image_count": len(processed.images),
+            "has_context": bool(conversation_context),
+        },
+    )
+
     user_text = json.dumps(processed.to_dict(), indent=2)
 
     # Prepend prior session context for follow-up turns
@@ -131,7 +143,11 @@ async def analyse_requirements(
         max_tokens=1024,
     )
 
-    data = json.loads(raw)
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.exception("Analyst output was not valid JSON")
+        raise
     queries = [
         QdrantQuery(
             text_query=q["text_query"],

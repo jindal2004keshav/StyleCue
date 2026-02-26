@@ -4,7 +4,10 @@ import json
 from fastapi import APIRouter, Form, Request, UploadFile, File
 from pydantic import BaseModel
 
+from utils.logger import get_logger
+
 router = APIRouter(prefix="/steps")
+logger = get_logger(__name__)
 
 
 # ── Step 1: Process Input ─────────────────────────────────────────────────────
@@ -25,42 +28,44 @@ async def process_input_step(
     images: list[UploadFile] = File(default=[]),
 ) -> ProcessInputResponse:
     """Step 1: Normalize multimodal input. Returns structured summary (no base64)."""
-    from steps import process_input
-
-    base_url = str(request.base_url).rstrip("/")
-    image_uploads = [(await img.read(), img.filename or "image.jpg") for img in images]
-
     try:
-        prefs: dict[str, str] = json.loads(preferences)
-    except (json.JSONDecodeError, ValueError):
-        prefs = {}
+        logger.info(
+            "POST /api/steps/process-input start",
+            extra={"department": department, "has_images": bool(images)},
+        )
+        from steps import process_input
 
-    processed = await process_input(
-        department=department,
-        prompt=message,
-        image_uploads=image_uploads or None,
-        preferences=prefs,
-        base_url=base_url,
-    )
+        base_url = str(request.base_url).rstrip("/")
+        image_uploads = [(await img.read(), img.filename or "image.jpg") for img in images]
 
-    return ProcessInputResponse(
-        department=processed.department,
-        prompt=processed.prompt,
-        preference_keys=list(processed.preferences.keys()),
-        images=[{"slug": img.slug, "meta": img.meta, "url": img.url} for img in processed.images],
-    )
+        try:
+            prefs: dict[str, str] = json.loads(preferences)
+        except (json.JSONDecodeError, ValueError):
+            prefs = {}
+
+        processed = await process_input(
+            department=department,
+            prompt=message,
+            image_uploads=image_uploads or None,
+            preferences=prefs,
+            base_url=base_url,
+        )
+
+        return ProcessInputResponse(
+            department=processed.department,
+            prompt=processed.prompt,
+            preference_keys=list(processed.preferences.keys()),
+            images=[{"slug": img.slug, "meta": img.meta, "url": img.url} for img in processed.images],
+        )
+    except Exception:
+        logger.exception(
+            "Step 1 failed: /api/steps/process-input",
+            extra={"department": department, "has_images": bool(images)},
+        )
+        raise
 
 
 # ── Step 2: Requirement Analysis ──────────────────────────────────────────────
-
-class AnalyseRequirementsRequest(BaseModel):
-    department: str
-    prompt: str
-    preferences: dict[str, str] = {}
-    # Images are passed as their dict form (slug/meta/url) since we can't re-upload
-    image_metas: list[dict] = []
-    conversation_context: dict = {}
-
 
 class AnalyseRequirementsResponse(BaseModel):
     reasoning: str
@@ -69,39 +74,65 @@ class AnalyseRequirementsResponse(BaseModel):
 
 
 @router.post("/analyse-requirements", response_model=AnalyseRequirementsResponse)
-async def analyse_requirements_step(body: AnalyseRequirementsRequest) -> AnalyseRequirementsResponse:
+async def analyse_requirements_step(body: dict) -> AnalyseRequirementsResponse:
     """Step 2: Intelligent LLM analyses requirements and produces Qdrant queries."""
-    from steps.input_processor import ProcessedInput, ProcessedImage
-    from steps import analyse_requirements
+    try:
+        from steps.input_processor import ProcessedInput, ProcessedImage
+        from steps import analyse_requirements
 
-    # Re-construct ProcessedInput without raw images (meta-only for isolated testing)
-    images = [
-        ProcessedImage(
-            slug=m.get("slug", ""),
-            meta=m.get("meta", {}),
-            url=m.get("url", ""),
-            base64="",   # not available in isolated test; LLM uses dict meta only
+        department = body.get("department", "")
+        prompt = body.get("prompt", "")
+        preferences = body.get("preferences", {})
+        # Accept either "image_metas" (intended shape) or "images" (from Step 1 response)
+        image_metas = body.get("image_metas")
+        if image_metas is None:
+            image_metas = body.get("images", [])
+        conversation_context = body.get("conversation_context", {})
+
+        if not isinstance(preferences, dict):
+            preferences = {}
+        if not isinstance(image_metas, list):
+            image_metas = []
+
+        logger.info(
+            "POST /api/steps/analyse-requirements start",
+            extra={"department": department, "image_meta_count": len(image_metas)},
         )
-        for m in body.image_metas
-    ]
 
-    processed = ProcessedInput(
-        department=body.department,
-        prompt=body.prompt,
-        preferences=body.preferences,
-        images=images,
-    )
+        # Re-construct ProcessedInput without raw images (meta-only for isolated testing)
+        images = [
+            ProcessedImage(
+                slug=m.get("slug", ""),
+                meta=m.get("meta", {}),
+                url=m.get("url", ""),
+                base64="",   # not available in isolated test; LLM uses dict meta only
+            )
+            for m in image_metas
+        ]
 
-    analyst = await analyse_requirements(
-        processed,
-        conversation_context=body.conversation_context or None,
-    )
+        processed = ProcessedInput(
+            department=department,
+            prompt=prompt,
+            preferences=preferences,
+            images=images,
+        )
 
-    return AnalyseRequirementsResponse(
-        reasoning=analyst.reasoning,
-        requires_qdrant=analyst.requires_qdrant,
-        queries=[q.to_dict() for q in analyst.queries],
-    )
+        analyst = await analyse_requirements(
+            processed,
+            conversation_context=conversation_context or None,
+        )
+
+        return AnalyseRequirementsResponse(
+            reasoning=analyst.reasoning,
+            requires_qdrant=analyst.requires_qdrant,
+            queries=[q.to_dict() for q in analyst.queries],
+        )
+    except Exception:
+        logger.exception(
+            "Step 2 failed: /api/steps/analyse-requirements",
+            extra={"department": body.get("department"), "image_meta_count": len(body.get("image_metas") or body.get("images") or [])},
+        )
+        raise
 
 
 # ── Step 3: Qdrant Search ─────────────────────────────────────────────────────
@@ -113,19 +144,30 @@ class SearchQdrantRequest(BaseModel):
 @router.post("/search-qdrant")
 async def search_qdrant_step(body: SearchQdrantRequest) -> list[dict]:
     """Step 3: Execute one or more Qdrant queries and return a deduplicated product list."""
-    from steps.requirement_analyst import QdrantQuery
-    from steps import search_qdrant
-
-    queries = [
-        QdrantQuery(
-            text_query=q["text_query"],
-            filters=q.get("filters", {}),
-            top_k=int(q.get("top_k", 10)),
+    try:
+        logger.info(
+            "POST /api/steps/search-qdrant start",
+            extra={"query_count": len(body.queries)},
         )
-        for q in body.queries
-    ]
-    products = await search_qdrant(queries)
-    return [p.to_dict() for p in products]
+        from steps.requirement_analyst import QdrantQuery
+        from steps import search_qdrant
+
+        queries = [
+            QdrantQuery(
+                text_query=q["text_query"],
+                filters=q.get("filters", {}),
+                top_k=int(q.get("top_k", 10)),
+            )
+            for q in body.queries
+        ]
+        products = await search_qdrant(queries)
+        return [p.to_dict() for p in products]
+    except Exception:
+        logger.exception(
+            "Step 3 failed: /api/steps/search-qdrant",
+            extra={"query_count": len(body.queries)},
+        )
+        raise
 
 
 # ── Step 4: Final Response ────────────────────────────────────────────────────
@@ -147,37 +189,48 @@ class GenerateResponseResponse(BaseModel):
 @router.post("/generate-response", response_model=GenerateResponseResponse)
 async def generate_response_step(body: GenerateResponseRequest) -> GenerateResponseResponse:
     """Step 4: Generate structured outfit recommendations from analyst reasoning + products."""
-    from steps.input_processor import ProcessedInput
-    from steps.requirement_analyst import AnalystOutput
-    from steps.qdrant_search import Product
-    from steps import generate_response
-
-    processed = ProcessedInput(
-        department=body.department,
-        prompt=body.prompt,
-        preferences=body.preferences,
-    )
-    analyst = AnalystOutput(
-        reasoning=body.reasoning,
-        requires_qdrant=body.requires_qdrant,
-        queries=[],
-    )
-    products = [
-        Product(
-            id=p.get("id", ""),
-            name=p.get("name", ""),
-            category=p.get("category", ""),
-            price=float(p.get("price", 0.0)),
-            image_url=p.get("image_url", ""),
-            pdp_url=p.get("pdp_url", ""),
-            description=p.get("description", ""),
-            metadata=p.get("metadata", {}),
+    try:
+        logger.info(
+            "POST /api/steps/generate-response start",
+            extra={"department": body.department, "product_count": len(body.products)},
         )
-        for p in body.products
-    ]
+        from steps.input_processor import ProcessedInput
+        from steps.requirement_analyst import AnalystOutput
+        from steps.qdrant_search import Product
+        from steps import generate_response
 
-    outfits = await generate_response(
-        processed, analyst, products,
-        conversation_context=body.conversation_context or None,
-    )
-    return GenerateResponseResponse(outfits=[o.to_dict() for o in outfits])
+        processed = ProcessedInput(
+            department=body.department,
+            prompt=body.prompt,
+            preferences=body.preferences,
+        )
+        analyst = AnalystOutput(
+            reasoning=body.reasoning,
+            requires_qdrant=body.requires_qdrant,
+            queries=[],
+        )
+        products = [
+            Product(
+                id=p.get("id", ""),
+                name=p.get("name", ""),
+                category=p.get("category", ""),
+                price=float(p.get("price", 0.0)),
+                image_url=p.get("image_url", ""),
+                pdp_url=p.get("pdp_url", ""),
+                description=p.get("description", ""),
+                metadata=p.get("metadata", {}),
+            )
+            for p in body.products
+        ]
+
+        outfits = await generate_response(
+            processed, analyst, products,
+            conversation_context=body.conversation_context or None,
+        )
+        return GenerateResponseResponse(outfits=[o.to_dict() for o in outfits])
+    except Exception:
+        logger.exception(
+            "Step 4 failed: /api/steps/generate-response",
+            extra={"department": body.department, "product_count": len(body.products)},
+        )
+        raise

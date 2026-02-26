@@ -1,3 +1,7 @@
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 from .input_processor import ProcessedInput, ProcessedImage, process_input
 from .requirement_analyst import QdrantQuery, AnalystOutput, analyse_requirements
 from .qdrant_search import Product, search_qdrant

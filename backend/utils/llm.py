@@ -2,6 +2,9 @@
 
 import anthropic
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 _client: anthropic.AsyncAnthropic | None = None
 
 
@@ -10,8 +13,30 @@ def get_client() -> anthropic.AsyncAnthropic:
     global _client
     if _client is None:
         from config import settings
+        logger.info("Initializing Anthropic client")
         _client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
     return _client
+
+
+def clean_llm_json_response(text: str) -> str:
+    """Normalize LLM output by removing leading json markers and trimming whitespace."""
+    normalized = text.lstrip()
+    if normalized.startswith("```"):
+        first_newline = normalized.find("\n")
+        if first_newline != -1:
+            fence_header = normalized[:first_newline].strip().lower()
+            if fence_header in {"```json", "```"}:
+                normalized = normalized[first_newline + 1 :]
+                fence_end = normalized.rfind("```")
+                if fence_end != -1:
+                    normalized = normalized[:fence_end]
+                normalized = normalized.lstrip()
+
+    if normalized.lower().startswith("json"):
+        normalized = normalized[4:]
+        normalized = normalized.lstrip()
+
+    return normalized.strip()
 
 
 async def call_llm(
@@ -36,14 +61,24 @@ async def call_llm(
     model = getattr(settings, model_key)
     client = get_client()
 
-    response = await client.messages.create(
-        model=model,
-        system=system,
-        messages=messages,
-        max_tokens=max_tokens,
+    logger.info(
+        "Calling LLM",
+        extra={"model": model, "message_count": len(messages), "max_tokens": max_tokens},
     )
-
-    return response.content[0].text
+    try:
+        response = await client.messages.create(
+            model=model,
+            system=system,
+            messages=messages,
+            max_tokens=max_tokens,
+        )
+    except Exception:
+        logger.exception("LLM call failed")
+        raise
+    
+    raw_text = response.content[0].text
+    logger.info(raw_text)
+    return clean_llm_json_response(raw_text)
 
 
 async def embed_text(text: str) -> list[float]:

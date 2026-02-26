@@ -1,4 +1,7 @@
 from pydantic_settings import BaseSettings
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 
 
 class Settings(BaseSettings):
@@ -16,7 +19,8 @@ class Settings(BaseSettings):
 
     # App
     app_env: str = "development"
-    cors_origins: list[str] = ["http://localhost:5173"]
+    # "null" origin is for file:// pages (tests/*.html opened directly).
+    cors_origins: list[str] = ["http://localhost:5173", "null"]
     uploads_dir: str = "uploads"
     brandeye_search_host: str = "https://ai-search-brandeye.blr.streamoid.com"
 

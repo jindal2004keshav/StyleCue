@@ -218,3 +218,59 @@ Implementation Notes for Client Utility
 - Send list fields as a single comma-separated string.
 - Treat next_token as opaque and pass it back as scroll_token for filter-only pagination.
 - Do not rely on total or scroll_token in response; the API returns next_token.
+
+Form Fields (multipart/form-data)
+
+All list fields are defined as list[str] in FastAPI, but the search logic reads only the first list value and then splits it by comma.
+Therefore: send a single comma‑separated string per field (no spaces unless the payload value includes spaces intentionally).
+
+- departments (string, optional)
+  Comma‑separated list mapped to payload key Department.
+  Example: Women,Men
+- categories (string, optional)
+  Comma‑separated list mapped to payload key category.
+  Example: T-Shirts,Dresses
+- colors (string, optional)
+  Comma‑separated list mapped to payload key Color.
+  Example: Black,Red
+- types (string, optional)
+  Comma‑separated list mapped to payload key Type.
+  Example: Topwear,Bottomwear
+- store_uuid (string, optional)
+  Store UUIDs. Two supported input shapes:
+    - Single field with commas: uuid1,uuid2 (will be split and trimmed)
+    - Repeated fields: -F store_uuid=uuid1 -F store_uuid=uuid2 (will be used as-is)
+- brands (string, optional)
+  Comma‑separated list mapped to payload key brand.
+  Example: Zara,H&M
+- source (string, optional)
+  Comma‑separated list mapped to payload key source.
+  Example: shopify,magento
+- trend_times (string, optional)
+  Comma‑separated list for payload key created_ts.
+    - One value: 2025-01-01T00:00:00Z → interpreted as >=
+    - Two values: 2025-01-01T00:00:00Z,2025-02-01T00:00:00Z → interpreted as >= start and <= end
+- discount_range (string, optional)
+  Comma‑separated numeric range for payload key discount.
+    - One value: 20 → >= 20
+    - Two values: 10,50
+- selling_price_range (string, optional)
+  Comma‑separated numeric range for payload key selling_price.
+    - One value: 20 → >= 20
+    - Two values: 20,100
+- query_text (string, optional)
+  Text used to generate text embeddings.
+- image (file, optional)
+  Raw image used to generate image embeddings.
+- sort_flag (string, optional, default popularity)
+  Only popularity and recency are honored; any other value is coerced to recency.
+
+Input Notes (corrected to code behavior)
+
+- Send multipart/form-data for all requests (even filter‑only).
+- For departments, categories, colors, types, brands, source, trend_times, discount_range, selling_price_range:
+  send a single comma‑separated string in one field.
+  The server only reads the first value in the list and splits it on commas.
+- Avoid spaces after commas unless the payload values themselves include spaces (the server does not trim values for most fields).
+- store_uuid is the only field that supports repeated form keys and also supports comma‑separated input.
+- If both image and query_text are present, embeddings are blended with weights text=0.4, image=0.6.
