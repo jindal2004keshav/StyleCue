@@ -75,15 +75,17 @@ Rules:
 
 async def _extract_image_meta(base64: str, llm_provider: str | None = None) -> dict:
     """Call the analyst LLM to extract fashion attributes from an image."""
+    from utils.image import get_media_type_from_base64
     from utils.llm import call_llm
 
+    media_type = get_media_type_from_base64(base64)
     raw = await call_llm(
         system=_IMAGE_META_SYSTEM,
         messages=[{
             "role": "user",
             "content": [{
                 "type": "image",
-                "source": {"type": "base64", "media_type": "image/jpeg", "data": base64},
+                "source": {"type": "base64", "media_type": media_type, "data": base64},
             }],
         }],
         model_key="analyst_model",

@@ -160,10 +160,12 @@ async def analyse_requirements(
     }]
 
     # Also attach the raw images so the LLM can see them directly, not just the meta
+    from utils.image import get_media_type_from_base64
     for img in processed.images:
+        media_type = get_media_type_from_base64(img.base64)
         user_content.append({
             "type": "image",
-            "source": {"type": "base64", "media_type": "image/jpeg", "data": img.base64},
+            "source": {"type": "base64", "media_type": media_type, "data": img.base64},
         })
 
     raw = await call_llm(
